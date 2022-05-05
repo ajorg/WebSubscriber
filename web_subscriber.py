@@ -37,9 +37,7 @@ class AtomLinksParser:
     links = {}
 
     def start(self, tag, attrs):
-        print(f"start: {tag}")
         if tag in ("link", "{http://www.w3.org/2005/Atom}link"):
-            print(f"link! {attrs}")
             _attrs = dict(attrs)
             if "rel" in _attrs and "href" in _attrs:
                 for rel in _attrs["rel"].split(" "):
@@ -142,7 +140,6 @@ def verify(mode, topic, challenge, lease_seconds):
         Key={"topic": {"S": topic}},
         AttributesToGet=["pending-subscribe", "pending-unsubscribe"],
     )
-    print(json.dumps(item))
     pending = item.get("Item", {}).get(f"pending-{mode}", {}).get("BOOL", False)
 
     if mode in ("subscribe", "unsubscribe") and pending:
