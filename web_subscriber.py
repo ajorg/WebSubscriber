@@ -1,14 +1,17 @@
 import json
-from os import environ
-from urllib.request import Request, urlopen
-from urllib.parse import urlencode
 from html.parser import HTMLParser
-from xml.etree.ElementTree import XMLParser
+from os import environ
 from urllib.error import HTTPError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+from xml.etree.ElementTree import XMLParser
 
 import boto3
 
 HEADERS = {"User-Agent": "WebSubscriber/0.0 (AWS Lambda) ajorg 2022"}
+LAMBDA_URL = environ.get("LAMBDA_URL")
+TABLE_NAME = environ.get("TABLE_NAME", "WebSubscriber")
+DDB = boto3.client("dynamodb")
 
 
 class HTMLLinksParser(HTMLParser):
@@ -95,7 +98,6 @@ def discover(url):
     # Redirects are handled for GET and HEAD requests
     request = Request(url, headers=HEADERS, method="HEAD")
     with urlopen(request) as response:
-        print(response.headers)
         # TODO: Consider status, redirect, etc.
         for link_header in response.headers.get_all("Link") or ():
             link, rel = parse_link_header(link_header)
@@ -104,7 +106,6 @@ def discover(url):
         request = Request(url, headers=HEADERS, method="GET")
         with urlopen(request) as response:
             content_type = response.headers.get_content_type()
-            print(content_type)
             if content_type in ("text/xml", "application/atom+xml"):
                 links = parse_atom(response)
             elif content_type in ("text/html", "application/xhtml+xml"):
@@ -114,16 +115,16 @@ def discover(url):
     return links
 
 
-def subscribe(topic_url, hub_url):
+def subscribe(topic, hub):
     query = {
         "hub.mode": "subscribe",
-        "hub.topic": topic_url,
+        "hub.topic": topic,
         # TODO: Use a specific callback path per subscription
-        "hub.callback": environ.get("LAMBDA_URL"),
+        "hub.callback": LAMBDA_URL,
     }
     data = urlencode(query).encode()
     # Redirects are not handled for POST
-    request = Request(hub_url, data, headers=HEADERS, method="POST")
+    request = Request(hub, data, headers=HEADERS, method="POST")
     try:
         with urlopen(request) as response:
             print(response.status)
@@ -135,29 +136,65 @@ def subscribe(topic_url, hub_url):
     return
 
 
-def verify(mode, topic, challenge):
-    # TODO: (requires database) check if we're subscribing
-    return
+def verify(mode, topic, challenge, lease_seconds):
+    item = DDB.get_item(
+        TableName=TABLE_NAME,
+        Key={"topic": {"S": topic}},
+        AttributesToGet=["pending-subscribe", "pending-unsubscribe"],
+    )
+    print(json.dumps(item))
+    pending = item.get("Item", {}).get(f"pending-{mode}", {}).get("BOOL", False)
+
+    if mode in ("subscribe", "unsubscribe") and pending:
+        response = {
+            "statusCode": 200,
+            "headers": {"content-type": "text/plain"},
+            "body": challenge,
+        }
+        DDB.update_item(
+            TableName=TABLE_NAME,
+            Key={"topic": {"S": topic}},
+            UpdateExpression="SET #p = :p",
+            ExpressionAttributeNames={"#p": f"pending-{mode}"},
+            ExpressionAttributeValues={":p": {"BOOL": False}},
+        )
+    else:
+        response = {"statusCode": 404}
+    return response
 
 
 def lambda_handler(event, context):
     print(json.dumps(dict(environ), sort_keys=True))
     print(json.dumps(event, sort_keys=True))
 
-    topic_arn = event.get("topic-arn", environ.get("TOPIC_ARN"))
+    target = environ.get("TARGET_ARN")
 
-    if "topic-url" in event:
-        links = discover(event["topic-url"])
+    if "sub.topic" in event and "sub.mode" in event:
+        mode = event["sub.mode"]
+        if mode not in ("subscribe",):
+            return {"statusCode": 400}
+        links = discover(event["sub.topic"])
+        topic = links.get("self")
+        DDB.update_item(
+            TableName=TABLE_NAME,
+            Key={"topic": {"S": topic}},
+            UpdateExpression="SET #p = :p",
+            ExpressionAttributeNames={"#p": f"pending-{mode}"},
+            ExpressionAttributeValues={":p": {"BOOL": True}},
+        )
         subscribe(links.get("self"), links.get("hub"))
 
-    # SNS.publish(
-    #    TopicArn=topic_arn,
-    #    Message=json.dumps(event, sort_keys=True),
-    # )
-
     body = None
-    if "queryStringParameters" in event:
-        body = event["queryStringParameters"].get("hub.challenge")
+    if "requestContext" in event:
+        if "queryStringParameters" in event:
+            q = event["queryStringParameters"]
+            if "hub.mode" in q:
+                return verify(
+                    q["hub.mode"],
+                    q["hub.topic"],
+                    q["hub.challenge"],
+                    q.get("hub.lease_seconds"),
+                )
 
     print(json.dumps({"body": body}, sort_keys=True))
 
