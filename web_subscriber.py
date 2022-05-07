@@ -140,6 +140,7 @@ def subscribe(uid, secret, topic, hub):
 
 
 def verify(uid, mode, topic, challenge, lease_seconds, time_epoch):
+    time = time_epoch // 1000
     item = DDB.get_item(
         TableName=TABLE_NAME,
         Key={"uid": {"S": uid}},
@@ -150,9 +151,9 @@ def verify(uid, mode, topic, challenge, lease_seconds, time_epoch):
 
     if mode in ("subscribe", "unsubscribe") and topic == _topic and pending:
         if mode == "subscribe":
-            expires = time_epoch + int(lease_seconds)
+            expires = time + int(lease_seconds)
         else:
-            expires = 0
+            expires = time
         response = {
             "statusCode": 200,
             "headers": {"content-type": "text/plain"},
