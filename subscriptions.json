@@ -1,5 +1,7 @@
 {
-  "topic": "{url:partition-key}",
+  "uid": "{id:partition-key}",
+  "topic": "{url}",
+  "target": "{arn}",
   "pending-subscribe": true,
   "pending-unsubscribe": true,
   "expires": 0,

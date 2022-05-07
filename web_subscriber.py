@@ -1,8 +1,9 @@
 import json
+from base64 import urlsafe_b64encode as encode
 from html.parser import HTMLParser
-from os import environ
+from os import environ, urandom
 from urllib.error import HTTPError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 from xml.etree.ElementTree import XMLParser
 
@@ -11,6 +12,8 @@ import boto3
 HEADERS = {"User-Agent": "WebSubscriber/0.0 (AWS Lambda) ajorg 2022"}
 LAMBDA_URL = environ.get("LAMBDA_URL")
 TABLE_NAME = environ.get("TABLE_NAME", "WebSubscriber")
+TARGET = environ.get("TARGET")
+
 DDB = boto3.client("dynamodb")
 
 
@@ -113,12 +116,11 @@ def discover(url):
     return links
 
 
-def subscribe(topic, hub):
+def subscribe(uid, topic, hub):
     query = {
         "hub.mode": "subscribe",
         "hub.topic": topic,
-        # TODO: Use a specific callback path per subscription
-        "hub.callback": LAMBDA_URL,
+        "hub.callback": urljoin(LAMBDA_URL, f"callback/{uid}"),
     }
     data = urlencode(query).encode()
     # Redirects are not handled for POST
@@ -134,15 +136,20 @@ def subscribe(topic, hub):
     return
 
 
-def verify(mode, topic, challenge, lease_seconds):
+def verify(uid, mode, topic, challenge, lease_seconds, time_epoch):
     item = DDB.get_item(
         TableName=TABLE_NAME,
-        Key={"topic": {"S": topic}},
-        AttributesToGet=["pending-subscribe", "pending-unsubscribe"],
+        Key={"uid": {"S": uid}},
+        AttributesToGet=["topic", "pending-subscribe", "pending-unsubscribe"],
     )
+    _topic = item.get("Item", {}).get("topic", {}).get("S")
     pending = item.get("Item", {}).get(f"pending-{mode}", {}).get("BOOL", False)
 
-    if mode in ("subscribe", "unsubscribe") and pending:
+    if mode in ("subscribe", "unsubscribe") and topic == _topic and pending:
+        if mode == "subscribe":
+            expires = time_epoch + int(lease_seconds)
+        else:
+            expires = 0
         response = {
             "statusCode": 200,
             "headers": {"content-type": "text/plain"},
@@ -150,23 +157,56 @@ def verify(mode, topic, challenge, lease_seconds):
         }
         DDB.update_item(
             TableName=TABLE_NAME,
-            Key={"topic": {"S": topic}},
-            UpdateExpression="SET #p = :p",
-            ExpressionAttributeNames={"#p": f"pending-{mode}"},
-            ExpressionAttributeValues={":p": {"BOOL": False}},
+            Key={"uid": {"S": uid}},
+            UpdateExpression="SET #p = :p, #e = :e",
+            ExpressionAttributeNames={"#p": f"pending-{mode}", "#e": "expires"},
+            ExpressionAttributeValues={
+                ":p": {"BOOL": False},
+                ":e": {"N": str(expires)},
+            },
         )
     else:
         response = {"statusCode": 404}
     return response
 
 
+def http_handler(method, path, parameters, body, headers, time_epoch):
+    response = {"statusCode": 400}
+
+    if path.startswith("/callback/"):
+        uid = path.split("/")[-1]
+        if method == "POST":
+            content_type = headers.get("content-type")
+            response = distribute(uid, body, content_type)
+        elif method == "GET":
+            mode = parameters.get("hub.mode")
+            if mode in ("subscribe", "unsubscribe"):
+                response = verify(
+                    uid=uid,
+                    mode=mode,
+                    topic=parameters["hub.topic"],
+                    challenge=parameters["hub.challenge"],
+                    lease_seconds=parameters.get("hub.lease_seconds", 0),
+                    time_epoch=time_epoch,
+                )
+
+    return response
+
+
+def distribute(uid, body, content_type):
+    print(json.dumps({"uid": uid, "content_type": content_type, "body": body}))
+    return {"statusCode": 202}
+
+
 def lambda_handler(event, context):
     print(json.dumps(dict(environ), sort_keys=True))
     print(json.dumps(event, sort_keys=True))
 
-    target = environ.get("TARGET_ARN")
+    response = {"statusCode": 400}
 
+    # Raw invocation
     if "sub.topic" in event and "sub.mode" in event:
+        uid = encode(urandom(12)).decode().rstrip("=")
         mode = event["sub.mode"]
         if mode not in ("subscribe",):
             return {"statusCode": 400}
@@ -174,25 +214,24 @@ def lambda_handler(event, context):
         topic = links.get("self")
         DDB.update_item(
             TableName=TABLE_NAME,
-            Key={"topic": {"S": topic}},
-            UpdateExpression="SET #p = :p",
-            ExpressionAttributeNames={"#p": f"pending-{mode}"},
-            ExpressionAttributeValues={":p": {"BOOL": True}},
+            Key={"uid": {"S": uid}},
+            UpdateExpression="SET #t = :t, #p = :p",
+            ExpressionAttributeNames={"#t": "topic", "#p": f"pending-{mode}"},
+            ExpressionAttributeValues={":t": {"S": topic}, ":p": {"BOOL": True}},
         )
-        subscribe(links.get("self"), links.get("hub"))
+        subscribe(uid, links.get("self"), links.get("hub"))
+        return True
 
-    body = None
-    if "requestContext" in event:
-        if "queryStringParameters" in event:
-            q = event["queryStringParameters"]
-            if "hub.mode" in q:
-                return verify(
-                    q["hub.mode"],
-                    q["hub.topic"],
-                    q["hub.challenge"],
-                    q.get("hub.lease_seconds"),
-                )
+    # Webhook invocation
+    if "http" in event.get("requestContext", {}):
+        response = http_handler(
+            method=event["requestContext"]["http"]["method"],
+            path=event["requestContext"]["http"]["path"],
+            parameters=event.get("queryStringParameters", {}),
+            body=event.get("body"),
+            headers=event.get("headers", {}),
+            time_epoch=event["requestContext"]["timeEpoch"],
+        )
+        print(json.dumps(response, sort_keys=True))
 
-    print(json.dumps({"body": body}, sort_keys=True))
-
-    return {"statusCode": 200, "headers": {"content-type": "text/plain"}, "body": body}
+    return response
