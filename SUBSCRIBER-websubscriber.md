@@ -54,6 +54,6 @@ Answers are:
 * [x] 300: Returns HTTP 2xx when the notification payload is delivered
 * [x] 1xx: Verifies a valid signature for authenticated distribution
 * [x] 301: Rejects a distribution request with an invalid signature
-* [ ] 302: Rejects a distribution request with no signature when the subscription was made with a secret
+* [x] 302: Rejects a distribution request with no signature when the subscription was made with a secret
 
 (1xx denotes that you can can use any of the 100-104 tests to confirm this feature)

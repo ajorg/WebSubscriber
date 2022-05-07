@@ -197,10 +197,11 @@ def http_handler(method, path, parameters, body, headers, time_epoch):
 
 
 def distribute(body, target):
-    pass
+    print(json.dumps({"target": target}))
 
 
 def receive(uid, headers, body):
+    response = {"statusCode": 400}
     item = DDB.get_item(
         TableName=TABLE_NAME,
         Key={"uid": {"S": uid}},
@@ -214,6 +215,8 @@ def receive(uid, headers, body):
         h = hmac.new(key=secret.encode(), msg=body.encode(), digestmod=method)
         if hmac.compare_digest(h.hexdigest(), signature):
             distribute(body, target)
+            response = {"statusCode": 202}
+            print(json.dumps({"uid": uid, "method": method, "signature": signature}))
         else:
             print(
                 json.dumps(
@@ -221,11 +224,12 @@ def receive(uid, headers, body):
                         "error": "Invalid signature",
                         "uid": uid,
                         "signature": signature,
+                        "method": method,
                         "should-be": h.hexdigest(),
                     }
                 )
             )
-    return {"statusCode": 202}
+    return response
 
 
 def lambda_handler(event, context):
