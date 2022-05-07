@@ -5,5 +5,5 @@
   "pending-subscribe": true,
   "pending-unsubscribe": true,
   "expires": 0,
-  "secret": "{hmac}"
+  "secret": "{hmac-secret}"
 }

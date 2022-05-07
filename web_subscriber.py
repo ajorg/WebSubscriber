@@ -1,3 +1,4 @@
+import hmac
 import json
 from base64 import urlsafe_b64encode as encode
 from html.parser import HTMLParser
@@ -116,11 +117,13 @@ def discover(url):
     return links
 
 
-def subscribe(uid, topic, hub):
+def subscribe(uid, secret, topic, hub):
+
     query = {
         "hub.mode": "subscribe",
         "hub.topic": topic,
         "hub.callback": urljoin(LAMBDA_URL, f"callback/{uid}"),
+        "hub.secret": secret,
     }
     data = urlencode(query).encode()
     # Redirects are not handled for POST
@@ -176,8 +179,7 @@ def http_handler(method, path, parameters, body, headers, time_epoch):
     if path.startswith("/callback/"):
         uid = path.split("/")[-1]
         if method == "POST":
-            content_type = headers.get("content-type")
-            response = distribute(uid, body, content_type)
+            response = receive(uid=uid, headers=headers, body=body)
         elif method == "GET":
             mode = parameters.get("hub.mode")
             if mode in ("subscribe", "unsubscribe"):
@@ -193,8 +195,35 @@ def http_handler(method, path, parameters, body, headers, time_epoch):
     return response
 
 
-def distribute(uid, body, content_type):
-    print(json.dumps({"uid": uid, "content_type": content_type, "body": body}))
+def distribute(body, target):
+    pass
+
+
+def receive(uid, headers, body):
+    item = DDB.get_item(
+        TableName=TABLE_NAME,
+        Key={"uid": {"S": uid}},
+        AttributesToGet=["secret", "target"],
+    )
+    secret = item.get("Item", {}).get("secret", {}).get("S")
+    target = item.get("Item", {}).get("target", {}).get("S")
+
+    method, signature = headers.get("x-hub-signature", "=").split("=", 1)
+    if method in ("sha1", "sha256", "sha384", "sha512"):
+        h = hmac.new(key=secret.encode(), msg=body.encode(), digestmod=method)
+        if hmac.compare_digest(h.hexdigest(), signature):
+            distribute(body, target)
+        else:
+            print(
+                json.dumps(
+                    {
+                        "error": "Invalid signature",
+                        "uid": uid,
+                        "signature": signature,
+                        "should-be": h.hexdigest(),
+                    }
+                )
+            )
     return {"statusCode": 202}
 
 
@@ -207,19 +236,36 @@ def lambda_handler(event, context):
     # Raw invocation
     if "sub.topic" in event and "sub.mode" in event:
         uid = encode(urandom(12)).decode().rstrip("=")
+        secret = encode(urandom(24)).decode().rstrip("=")
+
         mode = event["sub.mode"]
         if mode not in ("subscribe",):
             return {"statusCode": 400}
+
         links = discover(event["sub.topic"])
         topic = links.get("self")
+
         DDB.update_item(
             TableName=TABLE_NAME,
             Key={"uid": {"S": uid}},
-            UpdateExpression="SET #t = :t, #p = :p",
-            ExpressionAttributeNames={"#t": "topic", "#p": f"pending-{mode}"},
-            ExpressionAttributeValues={":t": {"S": topic}, ":p": {"BOOL": True}},
+            UpdateExpression="SET #t = :t, #p = :p, #s = :s",
+            ExpressionAttributeNames={
+                "#t": "topic",
+                "#p": f"pending-{mode}",
+                "#s": "secret",
+            },
+            ExpressionAttributeValues={
+                ":t": {"S": topic},
+                ":p": {"BOOL": True},
+                ":s": {"S": secret},
+            },
         )
-        subscribe(uid, links.get("self"), links.get("hub"))
+        subscribe(
+            uid=uid,
+            secret=secret,
+            topic=links.get("self"),
+            hub=links.get("hub"),
+        )
         return True
 
     # Webhook invocation
