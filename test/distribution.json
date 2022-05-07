@@ -1,0 +1,39 @@
+{
+  "body": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\" />\n  <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0\">\n\n  <title>WebSub Rocks!</title>\n  <link href=\"/assets/semantic.min.css\" rel=\"stylesheet\">\n  <link href=\"/assets/style.css\" rel=\"stylesheet\">\n\n  <script src=\"/assets/jquery-1.11.3.min.js\"></script>\n  <script src=\"/assets/semantic.min.js\"></script>\n  <script src=\"/assets/common.js\"></script>\n\n  \n</head>\n<body class=\"logged-in\">\n\n<div class=\"ui top fixed menu\">\n  <a class=\"item\" href=\"/\"><img src=\"/assets/websub-rocks-icon.png\"></a>\n  <a class=\"item\" href=\"/\">Home</a>\n  <a class=\"item\" href=\"/publisher\">Publisher</a>\n  <a class=\"item\" href=\"/subscriber\">Subscriber</a>\n  <a class=\"item\" href=\"/hub\">Hub</a>\n      <div class=\"right menu\">\n      <span class=\"item\">andrew.jorgensen@gmail.com</span>\n      <a class=\"item\" href=\"/auth/signout\">Sign Out</a>\n    </div>\n  </div>\n\n\n<div class=\"single-column\">\n\n      <section class=\"content\">\n      <p>Congrats! Now that your subscription is active, you can generate new posts that will be delivered to your subscriber! Click the button below to add a new post to this feed, and send a notification to subscribers of this feed.</p>\n\n      <a href=\"/subscriber/301/MhVOZDUFeJBFXohmBMMd/publish\" class=\"ui blue button\" id=\"subscriber-create-post\">Create New Post</a>\n    </section>\n\n    <div class=\"hidden ui success message\" id=\"step-delivery-result\">\n    </div>\n\n  \n  <div id=\"subscriber-post-list\" class=\"h-feed\">\n    <span class=\"p-name hidden\">WebSub.rocks Test 301</span>\n      \n    <section class=\"content h-entry\" id=\"quote-0\">\n      <div class=\"e-content p-name\">There are basically two types of people. People who accomplish things, and people who claim to have accomplished things. The first group is less crowded.</div>\n      <div class=\"p-author h-card\">Mark Twain</div>\n      <a href=\"#quote-0\" class=\"u-url\">\n        <time class=\"dt-published\" datetime=\"2022-05-07T02:55:57+00:00\">\n        May 7, 2022 2:55am        </time>\n      </a>\n    </section>\n    \n  \n    <section class=\"content h-entry\" id=\"quote-1\">\n      <div class=\"e-content p-name\">Every child is an artist. The challenge is to remain an artist after you grow up.</div>\n      <div class=\"p-author h-card\">Pablo Picasso</div>\n      <a href=\"#quote-1\" class=\"u-url\">\n        <time class=\"dt-published\" datetime=\"2022-05-07T02:55:50+00:00\">\n        May 7, 2022 2:55am        </time>\n      </a>\n    </section>\n    \n  \n    <section class=\"content h-entry\" id=\"quote-2\">\n      <div class=\"e-content p-name\">All the magic, be it in code or design, starts with a clear mind, pen and a blank paper.</div>\n      <div class=\"p-author h-card\">Brian Wangila</div>\n      <a href=\"#quote-2\" class=\"u-url\">\n        <time class=\"dt-published\" datetime=\"2022-05-07T02:55:50+00:00\">\n        May 7, 2022 2:55am        </time>\n      </a>\n    </section>\n    \n  \n    <section class=\"content h-entry\" id=\"quote-3\">\n      <div class=\"e-content p-name\">Short words are best and the old words when short are best of all.</div>\n      <div class=\"p-author h-card\">Winston Churchill </div>\n      <a href=\"#quote-3\" class=\"u-url\">\n        <time class=\"dt-published\" datetime=\"2022-05-07T02:55:50+00:00\">\n        May 7, 2022 2:55am        </time>\n      </a>\n    </section>\n    \n    </div>\n\n</div>\n<script>\n/* Subscriber Tests */\n$(function(){\n  $(\"#subscriber-create-post\").click(function(){\n    $(this).addClass(\"loading\");\n    $.post($(this).attr(\"href\"), function(data){\n      $(\"#subscriber-create-post\").removeClass(\"loading\");\n      if(data.result == 'success') {\n        $(\"#step-delivery-result\").removeClass(\"hidden\").text(data.message);\n      } else {\n        $(\"#step-delivery-result\").removeClass(\"success hidden\").addClass(\"error\").text(data.message);\n      }\n      if(data.html) {\n        $(\"#subscriber-post-list\").html(data.html);\n      }\n    });\n    return false;\n  });\n});\n</script>\n\n</body>\n</html>\n",
+  "headers": {
+    "accept": "*/*",
+    "content-length": "4034",
+    "content-type": "text/html",
+    "host": "iuotq7xkvrq324dze6fp7xv5fm0pvsqb.lambda-url.us-west-2.on.aws",
+    "link": "<https://websub.rocks/blog/301/MhVOZDUFeJBFXohmBMMd>; rel=\"self\", <https://websub.rocks/blog/301/MhVOZDUFeJBFXohmBMMd/hub>; rel=\"hub\"",
+    "user-agent": "WebSub.rocks/1.0 (WebSub Validator https://www.w3.org/TR/websub/)",
+    "x-amzn-trace-id": "Root=1-6275dfbd-311bb1e66607dd8617ef91fc",
+    "x-forwarded-for": "2600:3c01::f03c:91ff:fe94:80b2",
+    "x-forwarded-port": "443",
+    "x-forwarded-proto": "https",
+    "x-hub-signature": "sha256=77f578ff09d47363c488dd626bef6db396ba1171856306c81d03816901f0dcff"
+  },
+  "isBase64Encoded": false,
+  "rawPath": "/callback/geGZGIIH18XgG8F0",
+  "rawQueryString": "",
+  "requestContext": {
+    "accountId": "anonymous",
+    "apiId": "iuotq7xkvrq324dze6fp7xv5fm0pvsqb",
+    "domainName": "iuotq7xkvrq324dze6fp7xv5fm0pvsqb.lambda-url.us-west-2.on.aws",
+    "domainPrefix": "iuotq7xkvrq324dze6fp7xv5fm0pvsqb",
+    "http": {
+      "method": "POST",
+      "path": "/callback/geGZGIIH18XgG8F0",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "2600:3c01::f03c:91ff:fe94:80b2",
+      "userAgent": "WebSub.rocks/1.0 (WebSub Validator https://www.w3.org/TR/websub/)"
+    },
+    "requestId": "55474931-71be-4aa0-96c5-12f52abd6fe0",
+    "routeKey": "$default",
+    "stage": "$default",
+    "time": "07/May/2022:02:55:57 +0000",
+    "timeEpoch": 1651892157574
+  },
+  "routeKey": "$default",
+  "version": "2.0"
+}
