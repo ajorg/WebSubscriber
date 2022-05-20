@@ -1,7 +1,7 @@
 ## Complete
 - [ ] Renew subscriptions
 - [ ] Unsubscribe
-- [ ] Forward content to `target`
+- [x] Forward content to `target`
 - [ ] Clean up function order
 - [ ] Improve logging
 

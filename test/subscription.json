@@ -3,5 +3,6 @@
   "expires": 1651892236936,
   "pending-subscribe": false,
   "secret": "oU-tuMXnHid30tY_-J9QhStrYm4_Tjeg",
-  "topic": "https://websub.rocks/blog/301/MhVOZDUFeJBFXohmBMMd"
+  "topic": "https://websub.rocks/blog/301/MhVOZDUFeJBFXohmBMMd",
+  "target": "arn:aws:sns:us-west-2:000000000000:NotifyMe"
 }

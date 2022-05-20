@@ -16,6 +16,7 @@ TABLE_NAME = environ.get("TABLE_NAME", "WebSubscriber")
 TARGET = environ.get("TARGET")
 
 DDB = boto3.client("dynamodb")
+SNS = boto3.client("sns")
 
 
 class HTMLLinksParser(HTMLParser):
@@ -118,7 +119,6 @@ def discover(url):
 
 
 def subscribe(uid, secret, topic, hub):
-
     query = {
         "hub.mode": "subscribe",
         "hub.topic": topic,
@@ -133,6 +133,7 @@ def subscribe(uid, secret, topic, hub):
             print(response.status)
     except HTTPError as e:
         if e.code in (301, 302, 307, 308):
+            print(f"HTTPError: {e.code}")
             request.full_url = e.headers.get("Location")
             with urlopen(request) as response:
                 print(response.status)
@@ -197,6 +198,7 @@ def http_handler(method, path, parameters, body, headers, time_epoch):
 
 
 def distribute(body, target):
+    SNS.publish(TopicArn=target, Message=body)
     print(json.dumps({"target": target}))
 
 
@@ -215,7 +217,7 @@ def receive(uid, headers, body):
         h = hmac.new(key=secret.encode(), msg=body.encode(), digestmod=method)
         if hmac.compare_digest(h.hexdigest(), signature):
             distribute(body, target)
-            response = {"statusCode": 202}
+            response = {"statusCode": 200}
             print(json.dumps({"uid": uid, "method": method, "signature": signature}))
         else:
             print(
@@ -249,18 +251,21 @@ def lambda_handler(event, context):
 
         links = discover(event["sub.topic"])
         topic = links.get("self")
+        target = event.get("sub.target", TARGET)
 
         DDB.update_item(
             TableName=TABLE_NAME,
             Key={"uid": {"S": uid}},
-            UpdateExpression="SET #t = :t, #p = :p, #s = :s",
+            UpdateExpression="SET #t = :t, #T = :T, #p = :p, #s = :s",
             ExpressionAttributeNames={
                 "#t": "topic",
+                "#T": "target",
                 "#p": f"pending-{mode}",
                 "#s": "secret",
             },
             ExpressionAttributeValues={
                 ":t": {"S": topic},
+                ":T": {"S": target},
                 ":p": {"BOOL": True},
                 ":s": {"S": secret},
             },
