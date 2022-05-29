@@ -288,7 +288,6 @@ def renew():
 
 
 def lambda_handler(event, context):
-    print(json.dumps(dict(environ), sort_keys=True))
     print(json.dumps(event, sort_keys=True))
 
     response = {"statusCode": 400}
