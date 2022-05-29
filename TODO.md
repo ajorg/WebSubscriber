@@ -1,5 +1,5 @@
-## Complete
-- [ ] Renew subscriptions
+## Code Complete
+- [x] Renew subscriptions
 - [ ] Unsubscribe
 - [x] Forward content to `target`
 - [ ] Clean up function order
