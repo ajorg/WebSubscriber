@@ -1,3 +1,6 @@
+# Copyright Andrew Jorgensen
+# SPDX-License-Identifier: MIT
+# https://github.com/ajorg/WebSubscriber
 import hmac
 import json
 from base64 import urlsafe_b64encode as encode
