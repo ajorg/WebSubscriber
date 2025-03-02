@@ -274,7 +274,6 @@ def receive(uid, headers, body):
 
 
 def renew():
-    print("Renew!")  # Logan's Run (1976)
     tomorrow = int(time()) + 86400
     # TODO: result may be paginated
     result = DDB.scan(
@@ -284,6 +283,7 @@ def renew():
         ExpressionAttributeValues={":t": {"N": str(tomorrow)}},
     )
     for item in result["Items"]:
+        print("Renew!")  # Logan's Run (1976)
         print(json.dumps(item))
         topic = item["topic"]["S"]
         target = item["target"]["S"]
