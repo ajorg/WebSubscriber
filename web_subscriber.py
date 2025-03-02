@@ -241,6 +241,13 @@ def receive(uid, headers, body):
         Key={"uid": {"S": uid}},
         AttributesToGet=["secret", "target"],
     )
+
+    if "Item" not in result:
+        # The subscriber's callback URL MAY return an HTTP 410 code
+        # to indicate that the subscription has been deleted
+        # 410 Gone
+        return {"statusCode": 410}
+
     secret = result.get("Item", {}).get("secret", {}).get("S")
     target = result.get("Item", {}).get("target", {}).get("S")
 
