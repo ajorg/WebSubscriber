@@ -294,7 +294,7 @@ def receive(uid, headers, body):
 
 
 def renew():
-    tomorrow = int(time()) + 86400
+    tomorrow = int(time()) + 259200
     # TODO: result may be paginated
     result = DDB.scan(
         TableName=TABLE_NAME,
