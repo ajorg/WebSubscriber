@@ -10,7 +10,7 @@ from time import time
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
-from xml.etree.ElementTree import XMLParser
+from xml.etree.ElementTree import XMLParser, fromstring
 
 import boto3
 
@@ -234,12 +234,22 @@ def distribute(body, target):
     print(json.dumps({"target": target}))
 
 
+def remember(uid, ids):
+    DDB.update_item(
+        TableName=TABLE_NAME,
+        Key={"uid": {"S": uid}},
+        UpdateExpression="SET #s = :s",
+        ExpressionAttributeNames={"#s": "seen"},
+        ExpressionAttributeValues={":s": {"SS": list(ids)}},
+    )
+
+
 def receive(uid, headers, body):
     response = {"statusCode": 400}
     result = DDB.get_item(
         TableName=TABLE_NAME,
         Key={"uid": {"S": uid}},
-        AttributesToGet=["secret", "target"],
+        AttributesToGet=["secret", "target", "seen"],
     )
 
     if "Item" not in result:
@@ -250,12 +260,22 @@ def receive(uid, headers, body):
 
     secret = result.get("Item", {}).get("secret", {}).get("S")
     target = result.get("Item", {}).get("target", {}).get("S")
+    seen = set(result.get("Item", {}).get("seen", {}).get("SS", ()))
 
     method, signature = headers.get("x-hub-signature", "=").split("=", 1)
     if method in ("sha1", "sha256", "sha384", "sha512"):
         h = hmac.new(key=secret.encode(), msg=body.encode(), digestmod=method)
         if hmac.compare_digest(h.hexdigest(), signature):
-            distribute(body, target)
+            if headers.get("content-type", "").startswith("application/atom+xml"):
+                ids = {
+                    i.text
+                    for i in fromstring(body).iter("{http://www.w3.org/2005/Atom}id")
+                }
+                if ids - seen:
+                    distribute(body, target)
+                    remember(uid, ids)
+            else:
+                distribute(body, target)
             response = {"statusCode": 200}
             print(json.dumps({"uid": uid, "method": method, "signature": signature}))
         else:
